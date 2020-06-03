@@ -1,0 +1,204 @@
+---
+title: "VADA program - omics ML tutorial"
+author: "Julie Chih-yu Chen"
+date: "02/06/2020"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+Tutorial created for U of M VADA summer school
+
+Data and scripts modified from work out of Forbes, Chen et al. Microbiome 2018: https://pubmed.ncbi.nlm.nih.gov/30545401/
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(randomForest)
+library(caret)
+library(ROCR)
+library(gplots)
+```
+
+## Loading data
+
+```{r inputData}
+
+dat2use <- "../data/MicrobiomeData1.txt"
+dat4train <- read.table(dat2use, header = T, sep="\t")
+
+## Examine data properties
+## Make the category column a factor
+dat4train$cate<-factor(dat4train$cate)
+
+## Declare the target class for the categories
+positive="CD"
+#positive="Diseased"
+negative="HC"
+
+## Assingn negative as reference
+dat4train$cate<-relevel(dat4train$cate, ref = negative)
+
+## Preassign colors for visualization
+col2use = c("gold","darkblue")
+
+
+```
+
+## Exploring and visualize data
+
+```{r dataXploration}
+## how many OTUs (features) and samples are there?
+
+## Categories and counts of samples in each
+
+## distribution of data
+
+## dimension reduction 
+
+```
+
+## Building a random forest classifier
+### Hyperparameters:
+?randomForest to examine defaults of ntree, mtry, sampsize, etc.
+```{r rf}
+## model tuning
+#tuneResult<-tuneRF(dat4train[,-1], dat4train$cate, stepFactor=1.5)
+
+ntree=500
+
+## Set seed for report reproducibility here
+seedNum=111
+set.seed(seedNum)
+
+## Build rf model
+rf1 = randomForest(cate ~ ., ntree = ntree, data = dat4train)
+
+
+print(rf1) 
+plot(rf1)
+ 
+
+
+```
+
+### Examine the model outputs
+Infomation available in the model
+```{r rfmodel}
+names(rf1)
+rf1$confusion
+head(rf1$votes)
+head(rf1$predicted)
+
+```
+
+
+## Performance evaluation
+### Practice own assessment: 
+```{r ownAssessment}
+
+predvsRef <- data.frame(pred= rf1$predicted, ref=dat4train$cate)
+table(predvsRef)
+
+### Calculate sensitivity/recall yourselves
+
+
+### Which samples were wrongly predicted?
+
+
+```
+
+
+### Confusion Matrix & other metrics
+```{r perf_others}
+
+### this is from OOB result
+cmv <- confusionMatrix(data= rf1$predicted,  
+                           reference=dat4train$cate,
+                           positive=positive)
+
+cmv
+attributes(cmv)
+cmv$overall
+cmv$byClass
+
+### One can visualize the confusion matrix, but it's more informative for multi-class models.
+
+``` 
+
+
+### ROC & AUC
+```{r perf_AUC}
+## Check the following parameters
+rf.pred <- rf1$votes[,positive]
+y.ref <- as.numeric(dat4train$cate==positive)
+predROC0 <- prediction(rf.pred,y.ref)
+
+aucV <- performance(predROC0, measure = "auc")@y.values[[1]]
+
+plot(performance(predROC0, measure = "tpr", x.measure = "fpr"),main=paste("OOB: Pos =", positive))
+abline(a=0, b= 1, col="darkgray",lty=2)	
+text(0.7,0.2,labels=paste("AUC=",signif(aucV,2)))
+
+
+```
+
+## Variable importance
+### Feature selection with CV 
+Informing the number of top features w.r.t error through iterativelly reducing predictors in nested cross validation
+```{r featSelectNum}
+
+fresult <- rfcv(dat4train[,-1], dat4train[,1], cv.fold=5)
+with(fresult, plot(n.var, error.cv, log="x", type="o", lwd=2))
+
+```
+
+
+### Variable importance plot
+
+```{r varimp}
+# Variable Importance plot
+plottop = 20
+varImpPlot(rf1, sort = T, n.var=plottop, main=paste("Top",plottop,"- Variable Importance"))
+
+# Variable Importance 
+var.imp <- data.frame(importance(rf1,type=2))
+var.imp$Variables <- row.names(var.imp)  
+head(var.imp[order(var.imp$MeanDecreaseGini,decreasing = T),])
+
+```
+
+
+### Key features w.r.t samples
+
+```{r featVis}
+
+hdat2plot <- t(data.matrix(dat4train[,head(var.imp$Variables, plottop)]))
+
+
+heatmap.2(hdat2plot, trace="none", ColSideColors = col2use[dat4train$cate])
+legend("topright", legend = levels(dat4train$cate), col = col2use, lty= 1, lwd = 5, cex=.7 )
+
+```
+
+
+## Predicting new samples
+```{r predNew}
+
+leftout <- "../data/leftout.txt"
+newDat <- read.table(leftout, header = T, sep="\t")
+newPred <- predict(rf1, newDat[,-1], type="response")
+
+### prediction versus reference
+data.frame(pred=newPred, ref=newDat$cate)
+
+```
+
+## Thoughts
+
+Q1: What are the differences in the results from data #1 versus data #2? Why is there a descrepancy?
+
+Q2: What would you comment about the model generated for data #3?
+
+Q3: Describe the difference between the default model and sampsize-modified model on data #3.
