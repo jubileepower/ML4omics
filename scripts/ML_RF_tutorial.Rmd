@@ -69,7 +69,7 @@ col2use = c("gold","darkblue")
 ntree=500
 
 ## Set seed for report reproducibility here
-seedNum=111
+seedNum=333
 set.seed(seedNum)
 
 ## Build rf model
@@ -166,6 +166,8 @@ varImpPlot(rf1, sort = T, n.var=plottop, main=paste("Top",plottop,"- Variable Im
 var.imp <- data.frame(importance(rf1,type=2))
 var.imp$Variables <- row.names(var.imp)  
 head(var.imp[order(var.imp$MeanDecreaseGini,decreasing = T),])
+
+var.imp <- var.imp[order(var.imp$MeanDecreaseGini,decreasing = T),] ## bug fix for plotting
 
 ```
 
