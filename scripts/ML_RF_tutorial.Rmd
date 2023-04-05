@@ -1,16 +1,16 @@
 ---
-title: "VADA program - omics ML tutorial"
+title: "Omics ML tutorial"
 author: "Julie Chih-yu Chen"
-date: "02/06/2020"
+date: "04/05/2023"
 output:
   html_document:
     toc: true
     toc_float: true
 ---
 
-Tutorial created for U of M VADA summer school
+ML tutorial for the IMED7280 class at the University of Manitoba
 
-Data and scripts modified from work out of Forbes, Chen et al. Microbiome 2018: https://pubmed.ncbi.nlm.nih.gov/30545401/
+The microbiome data and scripts were modified from previous work in Forbes, Chen et al. Microbiome 2018: https://pubmed.ncbi.nlm.nih.gov/30545401/
 
 
 ```{r setup, include=FALSE}
@@ -19,63 +19,73 @@ library(randomForest)
 library(caret)
 library(ROCR)
 library(gplots)
+library(ggfortify)
+library(ggplot2)
 ```
 
 ## Loading data
 
 ```{r inputData}
-
+## Load data in data folder
 dat2use <- "../data/MicrobiomeData1.txt"
 dat4train <- read.table(dat2use, header = T, sep="\t")
 
-## Examine data properties
-## Make the category column a factor
-dat4train$cate<-factor(dat4train$cate)
+## Examine the first few rows and first 10 columns of the data
+head(dat4train[,1:10])
 
-## Declare the target class for the categories
-positive="CD"
-#positive="Diseased"
+## Declare the target class for the categories and the negative
+positive="CD" #positive="Diseased"
 negative="HC"
-
-## Assingn negative as reference
-dat4train$cate<-relevel(dat4train$cate, ref = negative)
-
-## Preassign colors for visualization
+## Preassign colors of classes for visualization
 col2use = c("gold","darkblue")
 
+## Examine data properties
+class(dat4train$cate)
+## Make the category column a factor and negative class the reference
+dat4train$cate<-factor(dat4train$cate, levels=c(negative,positive))
+class(dat4train$cate)
 
 ```
 
 ## Exploring and visualize data
 
 ```{r dataXploration}
-## how many OTUs (features) and samples are there?
+## How many OTUs (features) and samples are there? Hint: dim()
 
-## Categories and counts of samples in each
+## Categories and counts of samples in each? Hint: table()
 
-## distribution of data
+## Data distributions Hint: hist()
 
-## dimension reduction 
+## Dimension Reduction using PCA Resource: https://cran.r-project.org/web/packages/ggfortify/vignettes/plot_pca.html
+pca_res <- prcomp(dat4train[,-1], scale. = TRUE)
+autoplot(pca_res, data = dat4train, colour = 'cate', shape = FALSE, label.size = 3)
 
 ```
 
 ## Building a random forest classifier
 ### Hyperparameters:
-?randomForest to examine defaults of ntree, mtry, sampsize, etc.
+Use the ?randomForest to examine defaults of the hyperparameters: ntree, mtry, sampsize, etc.
+Out of Bag (OOB) error is the mean prediction error of left-out samples in trees. It is a different approach from cross validation, but they both report error estimates from left-out samples.
 ```{r rf}
-## model tuning
-#tuneResult<-tuneRF(dat4train[,-1], dat4train$cate, stepFactor=1.5)
+## Read help on the function
+?randomForest
 
+## Set the number of trees to generate in the model
 ntree=500
 
+## Model tuning mytry: something to try, note the sample sizes are too small here
+#tuneResult<-tuneRF(dat4train[,-1], dat4train$cate, stepFactor=1.5, ntreeTry=ntree)
+
 ## Set seed for report reproducibility here
-seedNum=333
-set.seed(seedNum)
+seedNum=111;set.seed(seedNum)
 
-## Build rf model
+## Build a random forest model
+## Do you get the same model/result when you run randomForest or tuneRF multiple times on the same data without setting a seed?
 rf1 = randomForest(cate ~ ., ntree = ntree, data = dat4train)
+#rf1 = randomForest(cate ~ ., ntree = ntree, sampsize = c(21, 21), data = dat4train)
 
 
+## Examine the model
 print(rf1) 
 plot(rf1)
  
@@ -84,11 +94,18 @@ plot(rf1)
 ```
 
 ### Examine the model outputs
-Infomation available in the model
+Examine the infomation available about the model, what are they?
 ```{r rfmodel}
+## The list of information you can retrieve from the random forest model
 names(rf1)
+
+## The confusion matrix
 rf1$confusion
+
+## The probabilities
 head(rf1$votes)
+
+## The predicted class per sample
 head(rf1$predicted)
 
 ```
@@ -97,8 +114,8 @@ head(rf1$predicted)
 ## Performance evaluation
 ### Practice own assessment: 
 ```{r ownAssessment}
-
-predvsRef <- data.frame(pred= rf1$predicted, ref=dat4train$cate)
+### Obtaining confusion matrix ourselves
+predvsRef <- data.frame(ref=dat4train$cate, pred= rf1$predicted)
 table(predvsRef)
 
 ### Calculate sensitivity/recall yourselves
@@ -113,22 +130,24 @@ table(predvsRef)
 ### Confusion Matrix & other metrics
 ```{r perf_others}
 
-### this is from OOB result
+### This is from OOB result
 cmv <- confusionMatrix(data= rf1$predicted,  
                            reference=dat4train$cate,
                            positive=positive)
 
 cmv
+
+### What are the information provided
 attributes(cmv)
 cmv$overall
 cmv$byClass
 
-### One can visualize the confusion matrix, but it's more informative for multi-class models.
+### One can also visualize the confusion matrix, but it's more informative for multi-class models.
 
 ``` 
 
 
-### ROC & AUC
+### Generating receiver operating characteristic (ROC) curve & the area under curve (AUC)
 ```{r perf_AUC}
 ## Check the following parameters
 rf.pred <- rf1$votes[,positive]
