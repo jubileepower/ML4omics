@@ -1,6 +1,6 @@
 ## ML Tutorial for the IMED7280 class at the University of Manitoba
 
-## Session: Machine learning tutorial: Applications on biological omics data 2023-04-06
+## Session: Machine learning tutorial: Applications on biological omics data
 
 Instructor: Julie Chih-yu Chen, PhD
 
